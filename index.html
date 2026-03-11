@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>게임업계 생존단어장</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #0f0f1a; font-family: 'Segoe UI', sans-serif; }
+  .card-container { perspective: 1000px; }
+  .card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.5s; transform-style: preserve-3d; }
+  .card-inner.flipped { transform: rotateY(180deg); }
+  .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .card-back-face { transform: rotateY(180deg); }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+  .shake { animation: shake 0.4s ease; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.1)} 100%{transform:scale(1)} }
+  .pop { animation: pop 0.25s ease; }
+  @keyframes wobble { 0%,100%{transform:rotate(0deg)} 20%{transform:rotate(-3deg)} 40%{transform:rotate(3deg)} 60%{transform:rotate(-2deg)} 80%{transform:rotate(2deg)} }
+  .wobble { animation: wobble 0.6s ease infinite; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes glow { 0%,100%{box-shadow:0 0 8px #a78bfa44} 50%{box-shadow:0 0 24px #a78bfa99} }
+  .glow { animation: glow 1.5s ease infinite; }
+  .gradient-text { background: linear-gradient(135deg, #a78bfa, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ── 데이터 ──────────────────────────────────────────────────────────
+const CATEGORIES = [
+  { id:"biz_kpi",     name:"비즈니스 KPI",   emoji:"💰", desc:"회의에서 이거 모르면 멘탈 터짐",       color:"#F59E0B", activeBg:"bg-amber-500/20",  border:"border-amber-500/50" },
+  { id:"dev_process", name:"개발 프로세스",   emoji:"🔧", desc:"개발팀이 어떻게 일하는지 이해하기",   color:"#3B82F6", activeBg:"bg-blue-500/20",    border:"border-blue-500/50" },
+  { id:"ingame",      name:"인게임/플레이어", emoji:"🎮", desc:"게임 하다 보면 다 나오는 말들",        color:"#10B981", activeBg:"bg-emerald-500/20", border:"border-emerald-500/50" },
+  { id:"role_org",    name:"직군 & 조직",     emoji:"👥", desc:"누가 뭘 하는 사람인지",               color:"#8B5CF6", activeBg:"bg-violet-500/20",  border:"border-violet-500/50" },
+  { id:"tech",        name:"기술",             emoji:"⚙️", desc:"개발자들이 입에 달고 사는 말",        color:"#6366F1", activeBg:"bg-indigo-500/20",  border:"border-indigo-500/50" },
+  { id:"live_ops",    name:"운영/라이브",     emoji:"🔄", desc:"게임 출시 후가 진짜 시작",            color:"#EF4444", activeBg:"bg-red-500/20",     border:"border-red-500/50" },
+];
+
+const TERMS_BUILTIN = [
+  { id:"dau", term:"DAU", termFull:"Daily Active Users", category:"biz_kpi", definition:"하루 동안 게임에 접속한 고유 이용자 수", example:"\"어제 DAU 50만 찍었대\" = 어제 50만 명이 접속했다", funFact:"DAU가 갑자기 튀면 좋은 거(바이럴) 아니면 나쁜 거(버그로 보상 풀림) 둘 중 하나", difficulty:1, relatedTerms:["mau","retention","arppu"] },
+  { id:"mau", term:"MAU", termFull:"Monthly Active Users", category:"biz_kpi", definition:"한 달 동안 게임에 접속한 고유 이용자 수", example:"\"MAU 대비 DAU 비율이 낮네\" = 매일 오는 사람이 적다는 뜻", funFact:"DAU÷MAU를 'Sticky Factor'라고 하는데, 높을수록 매일 오는 충성 유저가 많다는 증거", difficulty:1, relatedTerms:["dau","retention"] },
+  { id:"arppu", term:"ARPPU", termFull:"Average Revenue Per Paying User", category:"biz_kpi", definition:"돈을 쓴 유저 한 명당 평균 결제 금액", example:"\"이번 시즌 ARPPU가 떨어졌어\" = 결제 유저 1인당 쓰는 돈이 줄었다", funFact:"ARPU(전체 유저 기준)와 헷갈리기 쉬움. P가 하나 더 있으면 '결제한 사람'만 봄", difficulty:2, relatedTerms:["dau","ltv","iap"] },
+  { id:"ltv", term:"LTV", termFull:"Lifetime Value", category:"biz_kpi", definition:"유저 한 명이 게임을 떠나기 전까지 예상되는 총 수익", example:"\"이 세그먼트 LTV가 UA 비용보다 낮아\" = 광고비보다 번 돈이 적다는 뜻", funFact:"LTV > CAC(유저 획득 비용) 이어야 게임 사업이 돌아간다. 기본 중의 기본", difficulty:2, relatedTerms:["arppu","retention","ua"] },
+  { id:"retention", term:"리텐션", termFull:"Retention", category:"biz_kpi", definition:"유저가 처음 접속 후 며칠 뒤에도 게임에 돌아오는 비율", example:"\"D7 리텐션이 20% 이하면 온보딩을 다시 봐야 해\"", funFact:"D1(1일 후), D7(7일 후), D30(30일 후)가 업계 표준 측정 시점", difficulty:2, relatedTerms:["dau","mau","churn"] },
+  { id:"battle_pass", term:"배틀패스", termFull:"Battle Pass", category:"biz_kpi", definition:"시즌 기간 동안 미션을 완료하면 보상을 받는 유료 구독 콘텐츠", example:"\"이번 시즌 배틀패스 구매 전환율 목표가 얼마야?\"", funFact:"Fortnite가 대중화시킨 수익 모델. 정기 결제 + DAU 유지를 동시에 잡는 효자 아이템", difficulty:1, relatedTerms:["iap","arppu"] },
+  { id:"ua", term:"UA", termFull:"User Acquisition", category:"biz_kpi", definition:"광고·SNS 등으로 신규 유저를 유입시키는 마케팅 활동 전반", example:"\"이번 분기 UA 예산 얼마야?\"", funFact:"UA 담당자의 꿈은 LTV가 높은 유저를 저렴하게 데려오는 것. 그게 말처럼 쉽지 않음", difficulty:2, relatedTerms:["ltv","retention"] },
+  { id:"iap", term:"IAP", termFull:"In-App Purchase", category:"biz_kpi", definition:"앱·게임 내에서 이루어지는 모든 유료 구매", example:"\"iOS 정책 변경으로 IAP 전환율이 흔들릴 수 있어\"", funFact:"앱스토어는 IAP 수익의 30%를 가져간다. 게임사들이 항상 예민하게 보는 이유", difficulty:1, relatedTerms:["arppu","battle_pass"] },
+  { id:"churn", term:"이탈률", termFull:"Churn Rate", category:"biz_kpi", definition:"특정 기간 내 게임을 그만 둔 유저의 비율", example:"\"밸런스 패치 이후 이탈률이 급등했어\"", funFact:"리텐션의 반대 개념. Retention + Churn = 100%. 둘 다 알면 완벽", difficulty:2, relatedTerms:["retention","dau"] },
+  { id:"ccu", term:"CCU", termFull:"Concurrent Users", category:"biz_kpi", definition:"특정 시점에 동시에 접속해 있는 유저 수", example:"\"점심 피크 타임 CCU가 10만 넘었어\"", funFact:"서버 용량 설계의 기준이 되는 지표. CCU 예측 실패 → 서버 터짐 → 유저 폭발", difficulty:2, relatedTerms:["dau"] },
+  { id:"alpha_test", term:"알파 테스트", termFull:"Alpha Test", category:"dev_process", definition:"개발팀 내부에서 진행하는 초기 기능 검증 테스트", example:"\"알파에서 크래시 버그 3건 나와서 일정이 2주 밀렸어\"", funFact:"알파에서 못 잡은 버그는 베타에서 유저가 잡아준다. 근데 그게 더 아프다", difficulty:1, relatedTerms:["beta_test","qa","milestone"] },
+  { id:"beta_test", term:"베타 테스트", termFull:"Beta Test / CBT / OBT", category:"dev_process", definition:"외부 유저를 대상으로 하는 출시 전 대규모 테스트. CBT(비공개)와 OBT(공개)로 나뉜다", example:"\"CBT 참가자 모집 공고 언제 올려?\"", funFact:"CBT는 VIP 느낌, OBT는 사실상 출시 직전 리허설", difficulty:1, relatedTerms:["alpha_test","gold_master"] },
+  { id:"gold_master", term:"골드 마스터", termFull:"Gold Master", category:"dev_process", definition:"최종 출시 버전이 확정된 상태. 이 이후엔 버그 수정만 허용", example:"\"골드 마스터 승인은 이번 주 금요일 기준으로 잡고 있어\"", funFact:"CD/DVD 시절 '금 도금 마스터 디스크'를 굽던 데서 유래. 지금도 그냥 쓴다", difficulty:2, relatedTerms:["beta_test","hotfix","milestone"] },
+  { id:"hotfix", term:"핫픽스", termFull:"Hotfix", category:"dev_process", definition:"긴급 버그나 심각한 오류를 즉시 수정해 배포하는 소규모 패치", example:"\"지금 당장 핫픽스 안 치면 서버 전체가 날아가\"", funFact:"핫픽스 = 야근의 다른 말. 특히 금요일 저녁 출시 직후 핫픽스는 팀 전체의 악몽", difficulty:1, relatedTerms:["patch","rollback","bug"] },
+  { id:"patch", term:"패치", termFull:"Patch", category:"dev_process", definition:"버그 수정·밸런스 조정·기능 추가를 위해 정기 배포하는 업데이트", example:"\"다음 패치 일정 알아야 공지 초안을 쓸 수 있어\"", funFact:"패치 노트 읽는 게 취미인 유저들이 있다. 그 사람들이 커뮤니티 여론을 만든다", difficulty:1, relatedTerms:["hotfix","nerf","buff"] },
+  { id:"qa", term:"QA", termFull:"Quality Assurance", category:"dev_process", definition:"게임이 의도대로 동작하는지 체계적으로 검증하고 버그를 찾는 과정 및 직군", example:"\"QA에서 크리티컬 버그 2개 발견해서 출시 일정 재조정해야 해\"", funFact:"QA는 버그를 만드는 사람이 아니라 버그를 찾는 사람이다. 헷갈리는 사람 많음", difficulty:1, relatedTerms:["bug","alpha_test","milestone"] },
+  { id:"bug", term:"버그", termFull:"Bug", category:"dev_process", definition:"소프트웨어가 의도한 대로 동작하지 않는 오류", example:"\"이 버그 재현 조건이 불규칙해서 수정하기 어렵네\"", funFact:"1947년 하버드 컴퓨터에서 진짜 나방(bug)이 회로에 끼어 오작동한 게 어원. 진짜 버그였음", difficulty:1, relatedTerms:["hotfix","qa","rollback"] },
+  { id:"milestone", term:"마일스톤", termFull:"Milestone", category:"dev_process", definition:"프로젝트에서 중요한 완료 기준이 되는 시점. 알파·베타·골드가 대표적", example:"\"이번 마일스톤 놓치면 출시 일정 전체가 밀려\"", funFact:"고속도로 이정표(milestone)에서 유래. 얼마나 왔는지, 얼마나 남았는지 알려주는 것", difficulty:2, relatedTerms:["alpha_test","beta_test","gold_master"] },
+  { id:"postmortem", term:"포스트모템", termFull:"Post-mortem", category:"dev_process", definition:"프로젝트 완료 후 잘된 것과 잘못된 것을 팀 전체가 복기하는 회고 미팅", example:"\"론칭 후 포스트모템 일정 잡았어?\"", funFact:"라틴어로 '죽음 이후'. GDC에서 포스트모템 발표는 항상 인기 세션이다", difficulty:2, relatedTerms:["milestone","sprint"] },
+  { id:"sprint", term:"스프린트", termFull:"Sprint", category:"dev_process", definition:"애자일 방식에서 1~2주 단위로 묶은 개발 작업 주기", example:"\"이번 스프린트에 이 기능 넣을 수 있어?\"", funFact:"스프린트가 끝나면 스프린트 회고(Retrospective)를 한다. 포스트모템의 미니 버전", difficulty:2, relatedTerms:["milestone","postmortem"] },
+  { id:"battle_royale", term:"배틀로얄", termFull:"Battle Royale", category:"ingame", definition:"여러 명이 점점 좁아지는 구역 안에서 싸워 마지막까지 살아남는 팀/개인이 승리하는 방식", example:"\"이 모드는 배틀로얄은 아닌데, 서바이벌 감성은 살리고 싶어\"", funFact:"1999년 일본 소설 '배틀로얄'에서 시작해 PUBG가 장르를 폭발시킴", difficulty:1, relatedTerms:["pvp","meta"] },
+  { id:"pvp", term:"PvP", termFull:"Player vs Player", category:"ingame", definition:"실제 플레이어끼리 싸우는 모드나 콘텐츠", example:"\"PvP 밸런스가 무너지면 이탈률이 급등해\"", funFact:"PvP 게임에서 밸런스는 영원한 숙제. 완벽한 밸런스를 달성한 게임은 아직 없다", difficulty:1, relatedTerms:["pve","mmr","meta"] },
+  { id:"pve", term:"PvE", termFull:"Player vs Environment", category:"ingame", definition:"플레이어가 AI 적(몬스터·NPC)을 상대로 싸우는 모드", example:"\"PvE 콘텐츠 추가하면 캐주얼 유저 유입에 도움이 될 것 같은데\"", funFact:"PvE는 신규 유저 온보딩의 완충지대 역할을 한다", difficulty:1, relatedTerms:["pvp"] },
+  { id:"meta", term:"메타", termFull:"Meta (Most Effective Tactics Available)", category:"ingame", definition:"현재 가장 강하거나 많이 쓰이는 전략·캐릭터·무기 조합", example:"\"이번 패치로 저격 메타가 완전히 죽었네\"", funFact:"메타는 패치마다 바뀐다. 오늘의 최강 무기가 내일 너프될 수 있음", difficulty:1, relatedTerms:["nerf","buff","op"] },
+  { id:"nerf", term:"너프", termFull:"Nerf", category:"ingame", definition:"특정 캐릭터·무기·스킬의 성능을 의도적으로 약화시키는 패치", example:"\"이번 패치에서 M416 너프한다고?\"", funFact:"부드러운 장난감 총(NERF)에서 유래. 진짜 총을 장난감 총으로 바꾼다는 뜻", difficulty:1, relatedTerms:["buff","meta","patch"] },
+  { id:"buff", term:"버프", termFull:"Buff", category:"ingame", definition:"특정 캐릭터·무기·스킬의 성능을 의도적으로 강화시키는 패치", example:"\"신규 총기는 살짝 버프해서 출시하자\"", funFact:"너프 = 약화, 버프 = 강화. 과도한 버프는 OP 논란, 과도한 너프는 커뮤니티 분노를 부른다", difficulty:1, relatedTerms:["nerf","meta","op"] },
+  { id:"op", term:"OP", termFull:"Overpowered", category:"ingame", definition:"특정 요소가 다른 것보다 압도적으로 강해 밸런스가 무너진 상태", example:"\"지금 이 총 완전 OP잖아, 다음 패치 너프 예정이야?\"", funFact:"OP가 나오면 유저들이 그것만 쓴다 → 게임이 단조로워진다 → 이탈 → 너프. 반복", difficulty:1, relatedTerms:["nerf","meta","buff"] },
+  { id:"mmr", term:"MMR", termFull:"Matchmaking Rating", category:"ingame", definition:"매치메이킹에 사용되는 플레이어 실력 점수", example:"\"MMR 차이가 너무 나면 매칭 퀄리티가 떨어져\"", funFact:"체스 선수 Arpad Elo가 만든 ELO 시스템이 기원. 지금도 많은 게임이 ELO 기반 변형을 씀", difficulty:2, relatedTerms:["pvp"] },
+  { id:"respawn", term:"리스폰", termFull:"Respawn", category:"ingame", definition:"전투에서 사망 후 게임에 다시 부활해 참여하는 것", example:"\"리스폰 없는 구조라 한 번 죽으면 팀원 게임을 구경만 해야 해\"", funFact:"배틀로얄은 기본적으로 리스폰이 없다. 그게 긴장감의 핵심이다", difficulty:1, relatedTerms:["battle_royale","pvp"] },
+  { id:"glitch", term:"글리치", termFull:"Glitch", category:"ingame", definition:"게임 내 의도치 않은 오류나 이상 동작. 유저가 악용하기도 함", example:"\"이 글리치 악용하면 맵 밖으로 탈출이 가능해서 빠르게 패치해야 해\"", funFact:"일부 글리치는 버그지만 재밌어서 일부러 살려두기도 한다. 개발자 재량", difficulty:2, relatedTerms:["bug","hotfix"] },
+  { id:"game_designer", term:"게임 디자이너", termFull:"Game Designer", category:"role_org", definition:"게임의 규칙·메커니즘·보상·밸런스 등 플레이어 경험 전반을 설계하는 직군. 사내에서 '기획자'라고도 부른다", example:"\"이 메커니즘은 게임 디자이너 검토 먼저 받아야 해\"", funFact:"게임 디자이너는 코드를 못 짜도 된다. 하지만 논리적 사고와 수치 감각은 필수", difficulty:1, relatedTerms:["level_designer","producer"] },
+  { id:"level_designer", term:"레벨 디자이너", termFull:"Level Designer", category:"role_org", definition:"플레이어가 탐색하고 전투를 벌이는 맵·스테이지·공간을 설계하는 전문 직군", example:"\"신규 맵 초안은 레벨 디자이너 팀에서 먼저 공유해줄 거야\"", funFact:"좋은 레벨 디자인은 유저가 '어디로 가야 하지?'를 묻지 않게 만든다. 보이지 않는 게 최고", difficulty:2, relatedTerms:["game_designer"] },
+  { id:"producer", term:"PD / 프로듀서", termFull:"Producer / Project Director", category:"role_org", definition:"게임 개발 프로젝트 전체의 일정·자원·방향을 조율하는 총괄 역할", example:"\"이건 PD한테 먼저 공유하고 방향 잡아야 할 것 같아\"", funFact:"PD는 기술도 알고 사업도 알고 사람도 다뤄야 한다. 존재 자체가 멀티태스킹", difficulty:1, relatedTerms:["game_designer"] },
+  { id:"live_ops_role", term:"라이브오퍼레이션", termFull:"Live Operations / LiveOps", category:"role_org", definition:"출시 후 게임을 지속적으로 운영·유지하는 팀 또는 역할", example:"\"라이브팀이랑 이번 시즌 이벤트 일정 맞춰봤어?\"", funFact:"게임 출시는 끝이 아니라 시작이다. 라이브오퍼레이션이 수년간 게임을 살려야 한다", difficulty:1, relatedTerms:["hotfix","patch"] },
+  { id:"qa_engineer", term:"QA 엔지니어", termFull:"QA Engineer", category:"role_org", definition:"게임 품질 검증을 전담하는 테스트 전문 직군", example:"\"QA 엔지니어한테 재현 조건 정리해서 보내야 수정이 빨라\"", funFact:"QA 엔지니어의 목표는 게임을 즐기는 게 아니라 부수는 것이다. 직업의식이 특이함", difficulty:1, relatedTerms:["qa","bug"] },
+  { id:"tick_rate", term:"틱레이트", termFull:"Tick Rate", category:"tech", definition:"서버가 1초에 게임 상태를 몇 번 업데이트하는지를 나타내는 수치 (Hz 단위)", example:"\"틱레이트 64에서 128로 올리면 판정이 훨씬 정확해져\"", funFact:"틱레이트가 높을수록 정확하지만 서버 비용이 올라간다. 돈 vs 품질의 싸움", difficulty:3, relatedTerms:["latency","dedicated_server"] },
+  { id:"latency", term:"레이턴시", termFull:"Latency", category:"tech", definition:"클라이언트와 서버 사이에 데이터가 오가는 데 걸리는 시간 (ms 단위)", example:"\"동남아 서버 레이턴시 줄이려면 CDN 추가 도입이 필요해\"", funFact:"핑(Ping)과 거의 같은 말인데, 핑은 유저 관점, 레이턴시는 기술 관점에서 더 자주 쓰임", difficulty:2, relatedTerms:["tick_rate","dedicated_server"] },
+  { id:"frame_rate", term:"프레임레이트", termFull:"Frame Rate / FPS", category:"tech", definition:"1초 동안 화면에 표시되는 프레임 수. 높을수록 부드럽게 움직임", example:"\"60fps 이하로 떨어지면 유저 불만이 급격히 올라가\"", funFact:"여기서 FPS는 First Person Shooter가 아니라 Frames Per Second. 같은 약어가 두 가지 뜻이라 맥락 파악 필수", difficulty:1, relatedTerms:["latency","rendering"] },
+  { id:"game_engine", term:"게임 엔진", termFull:"Game Engine", category:"tech", definition:"렌더링·물리·사운드·AI 등 게임 개발에 필요한 기능을 제공하는 종합 개발 플랫폼", example:"\"언리얼 엔진 버전 업그레이드하면 기존 애셋 전부 재작업해야 해\"", funFact:"Unreal Engine(Epic)과 Unity가 양대산맥. 크래프톤 타이틀 다수는 언리얼 기반이다", difficulty:1, relatedTerms:["rendering"] },
+  { id:"dedicated_server", term:"데디케이티드 서버", termFull:"Dedicated Server", category:"tech", definition:"게임 전용으로 할당된 서버. P2P와 반대 개념", example:"\"데디케이티드 서버 도입하면 핵 차단이 훨씬 쉬워져\"", funFact:"데디케이티드 서버는 비용이 많이 들지만 안정성과 보안 면에서 P2P를 압도한다", difficulty:2, relatedTerms:["latency","tick_rate"] },
+  { id:"client_server", term:"클라이언트 / 서버", termFull:"Client / Server", category:"tech", definition:"클라이언트는 유저 기기에서 실행되는 게임 앱, 서버는 게임 상태를 처리하는 중앙 컴퓨터", example:"\"클라이언트 버그야, 서버 버그야? 원인 먼저 파악해야 해\"", funFact:"클라이언트 버그 = 내 화면에서만 이상함. 서버 버그 = 모든 유저가 이상함. 우선순위가 다름", difficulty:1, relatedTerms:["dedicated_server","latency"] },
+  { id:"sdk", term:"SDK", termFull:"Software Development Kit", category:"tech", definition:"특정 플랫폼이나 기능을 개발하기 위해 제공되는 도구·라이브러리·문서 묶음", example:"\"플랫폼사 SDK 업데이트가 있어서 대응 일정 잡아야 해\"", funFact:"SDK 없이 개발하는 건 재료 없이 요리하는 것. iOS·Android·Steam 모두 SDK가 있다", difficulty:2, relatedTerms:["game_engine"] },
+  { id:"rendering", term:"렌더링", termFull:"Rendering", category:"tech", definition:"3D 모델·효과 등을 화면에 보이는 2D 이미지로 변환하는 과정", example:"\"렌더링 최적화 안 하면 저사양 기기에서 게임이 안 돌아가\"", funFact:"렌더링 품질을 높이면 그래픽이 좋아지지만 프레임레이트가 떨어진다. 영원한 트레이드오프", difficulty:3, relatedTerms:["frame_rate","game_engine"] },
+  { id:"live_service", term:"라이브 서비스", termFull:"Live Service / GaaS", category:"live_ops", definition:"출시 후 지속적인 콘텐츠 업데이트·운영으로 유저를 유지하는 게임 운영 방식", example:"\"라이브 서비스 게임은 출시가 끝이 아니라 시작이야\"", funFact:"PUBG처럼 수년간 살아있는 게임은 라이브 서비스의 승리다. 개발팀보다 운영팀이 더 오래 일한다", difficulty:1, relatedTerms:["battle_pass","hotfix"] },
+  { id:"maintenance", term:"점검", termFull:"Maintenance", category:"live_ops", definition:"패치 적용·서버 작업 등을 위해 게임 서비스를 일시 중단하는 것", example:"\"점검 공지 초안 작성해서 2시간 전에 올려야 해\"", funFact:"점검 = 유저 불만 타이밍 1순위. 공지가 늦거나 점검이 연장되면 커뮤니티가 폭발한다", difficulty:1, relatedTerms:["patch","hotfix","compensation"] },
+  { id:"rollback", term:"롤백", termFull:"Rollback", category:"live_ops", definition:"문제가 생긴 업데이트를 이전 버전으로 되돌리는 것", example:"\"패치 후 크래시가 너무 많아서 롤백 결정했어\"", funFact:"롤백은 최후의 수단이다. 유저 데이터까지 날릴 수 있어서 결정이 매우 신중해야 함", difficulty:2, relatedTerms:["hotfix","patch","bug"] },
+  { id:"cs_support", term:"CS", termFull:"Customer Support", category:"live_ops", definition:"유저의 게임 내 문제·불만·문의를 접수하고 해결하는 고객지원 업무 및 팀", example:"\"핫픽스 나가면 CS 티켓 폭발하니까 미리 대응 가이드 준비해\"", funFact:"CS 티켓 내용을 분석하면 게임의 문제점이 보인다. 개발팀이 무시하면 안 되는 데이터", difficulty:1, relatedTerms:["hotfix","ban"] },
+  { id:"abuser", term:"어뷰저", termFull:"Abuser", category:"live_ops", definition:"게임 시스템의 허점이나 버그를 의도적으로 악용해 부당한 이득을 취하는 유저", example:"\"이번 버그로 어뷰저들이 재화를 무한 복사했어\"", funFact:"어뷰저와 일반 유저를 구분하는 게 운영팀의 핵심 과제. 잘못 제재하면 법적 문제까지 간다", difficulty:2, relatedTerms:["ban","glitch","rollback"] },
+  { id:"ban", term:"밴", termFull:"Ban", category:"live_ops", definition:"핵 사용·어뷰징 등 규정 위반 유저의 계정을 정지 또는 영구 차단하는 제재", example:"\"핵 사용자 배치 밴 나가면 커뮤니티 반응이 좋아\"", funFact:"배치 밴(Batch Ban)은 정기적으로 여러 위반자를 한꺼번에 제재하는 방식. 보안팀의 존재감 알리기", difficulty:1, relatedTerms:["abuser","cs_support"] },
+  { id:"bot", term:"봇", termFull:"Bot", category:"live_ops", definition:"자동화 프로그램을 이용해 게임을 플레이하거나 계정을 운영하는 불법 플레이어", example:"\"봇이 너무 많아서 경제 시스템이 무너지고 있어\"", funFact:"봇 = 게임 경제의 적. 재화를 자동 수집해 팔기 때문에 게임 내 인플레이션을 유발한다", difficulty:2, relatedTerms:["ban","abuser"] },
+  { id:"compensation", term:"보상", termFull:"Compensation", category:"live_ops", definition:"점검·버그·서버 장애 등으로 불편을 겪은 유저에게 아이템·재화 등을 지급하는 것", example:"\"점검이 2시간 연장됐으니까 보상 내용 결정해서 올려야 해\"", funFact:"보상 규모가 너무 작으면 역효과. '이거 줄 거면 주지 마' 반응이 나온다. 유저 기대치 관리가 핵심", difficulty:1, relatedTerms:["maintenance","cs_support"] },
+];
+
+// ── 유틸 ────────────────────────────────────────────────────────────
+const STORAGE_KEY = "gssg-v2";
+const today = () => new Date().toISOString().slice(0, 10);
+const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
+const getCat = (id) => CATEGORIES.find(c => c.id === id);
+const DIFF = { 1:"⭐ 기본", 2:"⭐⭐ 보통", 3:"⭐⭐⭐ 고급" };
+const DIFF_COLOR = { 1:"text-green-400", 2:"text-yellow-400", 3:"text-red-400" };
+
+const loadProgress = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; } };
+const saveProgress = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+// ── SplashScreen ────────────────────────────────────────────────────
+function SplashScreen({ onStart, onSearch, onBookmarks, progress, dataSource }) {
+  const streak = progress.streakDays || 0;
+  const bookmarkCount = (progress.bookmarkedTermIds || []).length;
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+      <div className="w-full max-w-sm flex justify-end gap-2 mb-2">
+        <button onClick={onSearch} className="text-gray-400 hover:text-white text-sm bg-white/5 hover:bg-white/10 px-3 py-2 rounded-xl transition flex items-center gap-1">
+          🔍 검색
+        </button>
+        <button onClick={onBookmarks} className="text-gray-400 hover:text-white text-sm bg-white/5 hover:bg-white/10 px-3 py-2 rounded-xl transition flex items-center gap-1">
+          ⭐ 즐겨찾기 {bookmarkCount > 0 && <span className="text-amber-400 font-bold">{bookmarkCount}</span>}
+        </button>
+      </div>
+      <div className="mb-8">
+        <div className="text-7xl mb-4">🎮</div>
+        <h1 className="text-4xl font-bold gradient-text mb-2">게임업계 생존단어장</h1>
+        <p className="text-gray-400 text-lg">신입이라면 알아야 할 용어들</p>
+      </div>
+      {streak > 0 && (
+        <div className="bg-orange-900/30 border border-orange-500/40 rounded-2xl px-6 py-3 mb-6 flex items-center gap-3">
+          <span className="text-2xl">🔥</span>
+          <div className="text-left">
+            <div className="text-orange-300 font-bold">{streak}일 연속 출석 중!</div>
+            <div className="text-gray-400 text-xs">오늘도 한 번 해볼까요?</div>
+          </div>
+        </div>
+      )}
+      <div className="flex gap-6 mb-10 text-sm text-gray-500">
+        <div className="text-center"><div className="text-2xl mb-1">📖</div>카드 학습</div>
+        <div className="text-center"><div className="text-2xl mb-1">⚡</div>퀴즈</div>
+        <div className="text-center"><div className="text-2xl mb-1">🎰</div>뽑기</div>
+      </div>
+      <button onClick={onStart} className="bg-violet-600 hover:bg-violet-500 text-white font-bold py-4 px-10 rounded-2xl text-lg transition active:scale-95">
+        시작하기 →
+      </button>
+      <p className="text-gray-600 text-xs mt-6">컬렉션 {(progress.collectedTermIds||[]).length}개 · 데이터: {dataSource}</p>
+    </div>
+  );
+}
+
+// ── ThemeSelectScreen ───────────────────────────────────────────────
+function ThemeSelectScreen({ allTerms, onConfirm }) {
+  const [selected, setSelected] = useState([]);
+  const toggle = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  return (
+    <div className="min-h-screen px-4 py-8 max-w-lg mx-auto">
+      <h2 className="text-2xl font-bold text-white mb-1">어떤 분야가 궁금해요?</h2>
+      <p className="text-gray-400 text-sm mb-6">복수 선택 가능 · 나중에 바꿀 수 있어요</p>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        {CATEGORIES.map(cat => {
+          const active = selected.includes(cat.id);
+          return (
+            <button key={cat.id} onClick={() => toggle(cat.id)}
+              className={`p-4 rounded-2xl border-2 text-left transition-all active:scale-95 ${active ? cat.activeBg + " " + cat.border : "bg-white/5 border-white/10"}`}>
+              <div className="text-3xl mb-2">{cat.emoji}</div>
+              <div className="text-white font-semibold text-sm">{cat.name}</div>
+              <div className="text-gray-400 text-xs mt-1">{cat.desc}</div>
+              <div className="text-gray-500 text-xs mt-2">{allTerms.filter(t => t.category === cat.id).length}개</div>
+            </button>
+          );
+        })}
+      </div>
+      <button onClick={() => setSelected(s => s.length === CATEGORIES.length ? [] : CATEGORIES.map(c => c.id))}
+        className="w-full text-gray-400 text-sm py-2 mb-4 hover:text-white transition">
+        {selected.length === CATEGORIES.length ? "전체 해제" : "전체 선택"}
+      </button>
+      <button onClick={() => onConfirm(selected.length ? selected : CATEGORIES.map(c => c.id))}
+        className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-4 rounded-2xl text-lg transition active:scale-95">
+        {selected.length ? `${selected.length}개 테마로 시작` : "전체 테마로 시작"} →
+      </button>
+    </div>
+  );
+}
+
+// ── ModeSplitScreen ─────────────────────────────────────────────────
+function ModeSplitScreen({ allTerms, selectedThemes, selectedDifficulties, onDifficultyChange, onMode, onChangeTheme }) {
+  const count = allTerms.filter(t => selectedThemes.includes(t.category) && selectedDifficulties.includes(t.difficulty)).length;
+  const diffOptions = [
+    { level: 1, label: "⭐ 기본", color: "border-green-500/60 bg-green-900/20 text-green-400" },
+    { level: 2, label: "⭐⭐ 보통", color: "border-yellow-500/60 bg-yellow-900/20 text-yellow-400" },
+    { level: 3, label: "⭐⭐⭐ 고급", color: "border-red-500/60 bg-red-900/20 text-red-400" },
+  ];
+  return (
+    <div className="min-h-screen flex flex-col px-6 py-8 max-w-lg mx-auto">
+      <button onClick={onChangeTheme} className="text-gray-400 hover:text-white text-sm mb-6 self-start">
+        ← 테마 변경
+      </button>
+      <h2 className="text-2xl font-bold text-white mb-1 text-center">어떻게 공부할까요?</h2>
+      <p className="text-gray-400 text-sm mb-6 text-center">{selectedThemes.length}개 테마 · {count}개 용어</p>
+
+      {/* 난이도 필터 */}
+      <div className="mb-8">
+        <p className="text-gray-400 text-xs mb-3 text-center">난이도 선택 (복수 가능)</p>
+        <div className="flex gap-2">
+          {diffOptions.map(({ level, label, color }) => {
+            const active = selectedDifficulties.includes(level);
+            return (
+              <button key={level} onClick={() => onDifficultyChange(level)}
+                className={`flex-1 py-2 rounded-xl border-2 text-sm font-semibold transition active:scale-95 ${active ? color : "border-white/10 bg-white/5 text-gray-500"}`}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <button onClick={() => onMode("learn")} disabled={count === 0}
+          className="w-full bg-emerald-900/40 border-2 border-emerald-500/50 hover:bg-emerald-800/40 rounded-2xl p-6 text-left transition active:scale-95 disabled:opacity-40">
+          <div className="text-3xl mb-3">📖</div>
+          <div className="text-white font-bold text-xl mb-1">단어장 모드</div>
+          <div className="text-gray-400 text-sm">카드를 넘기며 용어를 익혀요<br/>앞/뒷면 뒤집기 + 미니퀴즈 포함</div>
+        </button>
+        <button onClick={() => onMode("test_hub")} disabled={count === 0}
+          className="w-full bg-violet-900/40 border-2 border-violet-500/50 hover:bg-violet-800/40 rounded-2xl p-6 text-left transition active:scale-95 disabled:opacity-40">
+          <div className="text-3xl mb-3">⚡</div>
+          <div className="text-white font-bold text-xl mb-1">바로 테스트</div>
+          <div className="text-gray-400 text-sm">4지선다 퀴즈 · 오늘의 뽑기<br/>틀린 용어 → 단어장 자동 연결</div>
+        </button>
+        {count === 0 && <p className="text-center text-red-400 text-sm">선택한 조건에 해당하는 용어가 없어요</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── TestHub ─────────────────────────────────────────────────────────
+function TestHub({ filteredTerms, progress, onQuiz, onGacha, onBack }) {
+  const gachaDone = progress.gachaLastDate === today();
+  const lastScore = progress.quizHistory?.slice(-1)[0];
+  const collected = (progress.collectedTermIds || []).filter(id => filteredTerms.find(t => t.id === id)).length;
+  return (
+    <div className="min-h-screen px-4 py-8 max-w-lg mx-auto">
+      <button onClick={onBack} className="text-gray-400 hover:text-white text-sm mb-6 block">← 뒤로</button>
+      <h2 className="text-2xl font-bold text-white mb-6">테스트 허브</h2>
+      {/* 현황 카드 */}
+      <div className="grid grid-cols-3 gap-3 mb-8">
+        <div className="bg-white/5 rounded-2xl p-4 text-center">
+          <div className="text-2xl font-bold text-violet-400">{progress.streakDays || 0}</div>
+          <div className="text-gray-400 text-xs mt-1">🔥 연속 출석</div>
+        </div>
+        <div className="bg-white/5 rounded-2xl p-4 text-center">
+          <div className="text-2xl font-bold text-amber-400">{collected}</div>
+          <div className="text-gray-400 text-xs mt-1">⭐ 컬렉션</div>
+        </div>
+        <div className="bg-white/5 rounded-2xl p-4 text-center">
+          <div className="text-2xl font-bold text-emerald-400">{lastScore ? `${lastScore.score}/${lastScore.total}` : "-"}</div>
+          <div className="text-gray-400 text-xs mt-1">📊 최근 퀴즈</div>
+        </div>
+      </div>
+      <div className="flex flex-col gap-4">
+        <button onClick={onQuiz} className="w-full bg-violet-900/40 border-2 border-violet-500/50 hover:bg-violet-800/40 rounded-2xl p-5 text-left transition active:scale-95">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">⚡</span>
+            <div>
+              <div className="text-white font-bold text-lg">4지선다 퀴즈</div>
+              <div className="text-gray-400 text-sm">10문제, 스트릭 도전</div>
+            </div>
+          </div>
+        </button>
+        <button onClick={!gachaDone ? onGacha : undefined}
+          className={`w-full rounded-2xl p-5 text-left border-2 transition active:scale-95 ${gachaDone ? "bg-white/5 border-white/10 opacity-50 cursor-not-allowed" : "bg-amber-900/40 border-amber-500/50 hover:bg-amber-800/40"}`}>
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🎰</span>
+            <div>
+              <div className="text-white font-bold text-lg">오늘의 뽑기</div>
+              <div className="text-gray-400 text-sm">{gachaDone ? "오늘은 이미 뽑았어요 (내일 또 가능)" : "랜덤 3장 뽑기 · 일 1회"}</div>
+            </div>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── MiniQuiz (단어장 내 팝업) ────────────────────────────────────────
+function MiniQuiz({ recentTerms, allTerms, onClose, onWrong }) {
+  const [term] = useState(() => recentTerms[Math.floor(Math.random() * recentTerms.length)]);
+  const [opts] = useState(() => {
+    const wrong = shuffle(allTerms.filter(t => t.id !== term.id)).slice(0, 1);
+    return shuffle([term, ...wrong]);
+  });
+  const [selected, setSelected] = useState(null);
+  const answered = selected !== null;
+
+  const choose = (opt) => {
+    if (answered) return;
+    setSelected(opt.id);
+    if (opt.id !== term.id) onWrong(term.id);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center px-4 z-50">
+      <div className="bg-gray-900 border border-violet-500/40 rounded-3xl p-6 w-full max-w-sm fade-in">
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-violet-400 text-sm font-semibold">⚡ 미니퀴즈</span>
+          <button onClick={onClose} className="text-gray-500 hover:text-white text-sm">건너뛰기</button>
+        </div>
+        <p className="text-gray-300 text-sm mb-4">{term.definition}</p>
+        <div className="flex flex-col gap-2">
+          {opts.map(opt => {
+            const isCorrect = opt.id === term.id;
+            const isSelected = selected === opt.id;
+            let cls = "w-full py-3 px-4 rounded-xl border text-left text-white text-sm font-semibold transition active:scale-95 ";
+            if (!answered) cls += "bg-white/5 border-white/20 hover:bg-white/10";
+            else if (isCorrect) cls += "bg-emerald-800/40 border-emerald-400";
+            else if (isSelected) cls += "shake bg-red-900/40 border-red-400";
+            else cls += "bg-white/5 border-white/10 opacity-40";
+            return <button key={opt.id} className={cls} onClick={() => choose(opt)}>{opt.term}</button>;
+          })}
+        </div>
+        {answered && (
+          <div className="mt-4">
+            <p className="text-xs text-gray-400">{term.funFact}</p>
+            <button onClick={onClose} className="w-full mt-3 py-2 rounded-xl bg-violet-600 text-white text-sm font-bold transition active:scale-95">
+              {selected === term.id ? "정답! 계속 →" : "확인, 계속 →"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── LearnMode ───────────────────────────────────────────────────────
+// ── shareCard (Canvas → PNG 다운로드) ───────────────────────────────
+function shareCard(term) {
+  const cat = getCat(term.category);
+  const W = 600, H = 380;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  // 배경
+  ctx.fillStyle = "#0f0f1a";
+  ctx.fillRect(0, 0, W, H);
+  // 테두리
+  ctx.strokeStyle = "#7c3aed";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(8, 8, W - 16, H - 16);
+  // 카테고리
+  ctx.fillStyle = "#9ca3af";
+  ctx.font = "16px Segoe UI";
+  ctx.fillText(`${cat?.emoji} ${cat?.name}`, 36, 50);
+  // 용어
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 48px Segoe UI";
+  ctx.fillText(term.term, 36, 112);
+  // 풀네임
+  if (term.termFull) {
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "16px Segoe UI";
+    ctx.fillText(term.termFull, 36, 142);
+  }
+  // 구분선
+  ctx.strokeStyle = "#1f2937";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(36, 162); ctx.lineTo(W - 36, 162); ctx.stroke();
+  // 정의 (줄바꿈)
+  ctx.fillStyle = "#e5e7eb";
+  ctx.font = "20px Segoe UI";
+  const words = term.definition.split(" ");
+  let line = "", y = 196;
+  for (const w of words) {
+    const test = line + w + " ";
+    if (ctx.measureText(test).width > W - 72 && line) {
+      ctx.fillText(line.trim(), 36, y); line = w + " "; y += 30;
+    } else { line = test; }
+  }
+  ctx.fillText(line.trim(), 36, y);
+  // 브랜딩
+  ctx.fillStyle = "#4b5563";
+  ctx.font = "13px Segoe UI";
+  ctx.fillText("게임업계 생존단어장 · KRAFTON", 36, H - 24);
+  // 다운로드
+  const a = document.createElement("a");
+  a.download = `${term.term}_card.png`;
+  a.href = canvas.toDataURL("image/png");
+  a.click();
+}
+
+function LearnMode({ terms, allTerms, wrongTermIds, bookmarkedTermIds, onExit, onWrong, onBookmark }) {
+  const [index, setIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [done, setDone] = useState(false);
+  const [showMini, setShowMini] = useState(false);
+  const [seenCount, setSeenCount] = useState(0);
+  const [recentSeen, setRecentSeen] = useState([]);
+  const [shareToast, setShareToast] = useState(false);
+
+  const term = terms[index];
+  const cat = getCat(term?.category);
+  const isWrong = wrongTermIds.includes(term?.id);
+  const isBookmarked = bookmarkedTermIds.includes(term?.id);
+
+  const handleShare = (e) => {
+    e.stopPropagation();
+    shareCard(term);
+    setShareToast(true);
+    setTimeout(() => setShareToast(false), 2000);
+  };
+
+  useEffect(() => { setFlipped(false); }, [index]);
+
+  const next = () => {
+    const newSeen = [...new Set([...recentSeen, term.id])];
+    setRecentSeen(newSeen);
+    const newCount = seenCount + 1;
+    setSeenCount(newCount);
+    if (newCount % 4 === 0 && newSeen.length >= 2) { setShowMini(true); return; }
+    if (index === terms.length - 1) { setDone(true); return; }
+    setIndex(i => i + 1);
+  };
+
+  const afterMini = () => {
+    setShowMini(false);
+    if (index === terms.length - 1) { setDone(true); return; }
+    setIndex(i => i + 1);
+  };
+
+  if (done) return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+      <div className="text-6xl mb-4">🎉</div>
+      <h2 className="text-3xl font-bold text-white mb-2">모두 봤어요!</h2>
+      <p className="text-gray-400 mb-8">{terms.length}개 용어 완주</p>
+      <div className="flex flex-col gap-3 w-full max-w-xs">
+        <button onClick={() => { setIndex(0); setDone(false); setSeenCount(0); setRecentSeen([]); }} className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition">다시 보기</button>
+        <button onClick={() => onExit("test_hub")} className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold transition">테스트 해보기 ⚡</button>
+      </div>
+    </div>
+  );
+
+  if (!term) return null;
+
+  return (
+    <>
+      {showMini && (
+        <MiniQuiz
+          recentTerms={recentSeen.map(id => terms.find(t => t.id === id)).filter(Boolean)}
+          allTerms={terms}
+          onClose={afterMini}
+          onWrong={onWrong}
+        />
+      )}
+      <div className="min-h-screen flex flex-col px-4 py-6 max-w-lg mx-auto">
+        {shareToast && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-violet-700 text-white text-sm px-4 py-2 rounded-xl z-50 fade-in">
+            📥 이미지 저장됨
+          </div>
+        )}
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={() => onExit("mode_split")} className="text-gray-400 hover:text-white text-sm">← 나가기</button>
+          <span className="text-gray-400 text-sm">{index + 1} / {terms.length}</span>
+          <div className="flex items-center gap-2">
+            {isWrong && <span className="text-red-400 text-xs bg-red-900/30 px-2 py-1 rounded-full">복습 필요</span>}
+            <button onClick={(e) => { e.stopPropagation(); onBookmark(term.id); }}
+              className={`text-xl transition active:scale-90 ${isBookmarked ? "text-amber-400" : "text-gray-600 hover:text-amber-400"}`}>
+              {isBookmarked ? "⭐" : "☆"}
+            </button>
+            <button onClick={handleShare} className="text-gray-500 hover:text-white text-lg transition active:scale-90">📤</button>
+          </div>
+        </div>
+        <div className="w-full bg-white/10 rounded-full h-1.5 mb-6">
+          <div className="h-1.5 rounded-full bg-violet-500 transition-all" style={{ width: `${((index + 1) / terms.length) * 100}%` }} />
+        </div>
+        <div className="card-container flex-1 min-h-[420px] cursor-pointer" onClick={() => setFlipped(f => !f)}>
+          <div className={`card-inner h-full ${flipped ? "flipped" : ""}`} style={{ minHeight: 420 }}>
+            {/* 앞면 */}
+            <div className="card-face bg-gray-900 border border-white/10 rounded-3xl p-6 flex flex-col" style={{ minHeight: 420 }}>
+              <div className="flex items-center gap-2 mb-4">
+                <span>{cat?.emoji}</span>
+                <span className="text-xs text-gray-400">{cat?.name}</span>
+                <span className={`ml-auto text-xs ${DIFF_COLOR[term.difficulty]}`}>{DIFF[term.difficulty]}</span>
+              </div>
+              <div className="flex-1 flex flex-col justify-center">
+                <h2 className="text-4xl font-bold text-white mb-2">{term.term}</h2>
+                {term.termFull && <p className="text-gray-400 text-sm mb-4">{term.termFull}</p>}
+                <p className="text-gray-200 text-lg leading-relaxed">{term.definition}</p>
+              </div>
+              <div className="mt-4 bg-white/5 rounded-2xl p-4">
+                <p className="text-gray-400 text-xs mb-1">💬 실전 예문</p>
+                <p className="text-gray-300 text-sm">{term.example}</p>
+              </div>
+              <p className="text-center text-gray-600 text-xs mt-4">탭해서 fun fact 보기 →</p>
+            </div>
+            {/* 뒷면 */}
+            <div className="card-face card-back-face bg-gray-900 border border-violet-500/30 rounded-3xl p-6 flex flex-col" style={{ minHeight: 420 }}>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-violet-400 text-sm font-semibold">✨ Fun Fact</span>
+                <span className={`ml-auto text-xs ${DIFF_COLOR[term.difficulty]}`}>{DIFF[term.difficulty]}</span>
+              </div>
+              <div className="flex-1 flex flex-col justify-center">
+                <p className="text-white text-xl leading-relaxed">{term.funFact}</p>
+              </div>
+              {term.relatedTerms?.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-gray-500 text-xs mb-2">관련 용어</p>
+                  <div className="flex flex-wrap gap-2">
+                    {term.relatedTerms.map(rid => {
+                      const r = allTerms.find(t => t.id === rid);
+                      return r ? <span key={rid} className="bg-white/10 text-gray-300 text-xs px-3 py-1 rounded-full">{r.term}</span> : null;
+                    })}
+                  </div>
+                </div>
+              )}
+              <p className="text-center text-gray-600 text-xs mt-4">← 탭해서 돌아가기</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button onClick={() => { setIndex(i => Math.max(0, i - 1)); }} disabled={index === 0}
+            className="flex-1 py-4 rounded-2xl bg-white/10 text-white font-semibold disabled:opacity-30 active:scale-95 transition">
+            ← 이전
+          </button>
+          <button onClick={next}
+            className="flex-1 py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold active:scale-95 transition">
+            {index === terms.length - 1 ? "완료 🎉" : "다음 →"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── QuizMode ────────────────────────────────────────────────────────
+function QuizMode({ terms, onFinish, onBack }) {
+  const TOTAL = Math.min(10, terms.length);
+  const [questions] = useState(() => shuffle(terms).slice(0, TOTAL).map(t => ({
+    term: t,
+    options: shuffle([t, ...shuffle(terms.filter(x => x.id !== t.id)).slice(0, 3)])
+  })));
+  const [qi, setQi] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [streak, setStreak] = useState(0);
+  const [score, setScore] = useState(0);
+  const [wrongIds, setWrongIds] = useState([]);
+  const [animKey, setAnimKey] = useState(0);
+
+  const current = questions[qi];
+  const answered = selected !== null;
+
+  const choose = (opt) => {
+    if (answered) return;
+    setSelected(opt.id);
+    if (opt.id === current.term.id) { setScore(s => s + 1); setStreak(s => s + 1); }
+    else { setStreak(0); setWrongIds(ids => [...ids, current.term.id]); }
+    setAnimKey(k => k + 1);
+  };
+
+  const next = () => {
+    if (qi + 1 >= TOTAL) { onFinish({ score, total: TOTAL, wrongIds }); return; }
+    setSelected(null);
+    setQi(i => i + 1);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col px-4 py-6 max-w-lg mx-auto">
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={onBack} className="text-gray-400 hover:text-white text-sm">← 나가기</button>
+        <span className="text-gray-400 text-sm">{qi + 1} / {TOTAL}</span>
+        <span key={animKey} className={`text-orange-400 font-bold text-sm ${streak > 0 ? "pop" : ""}`}>
+          {streak > 1 ? `🔥 ${streak}연속` : `점수 ${score}`}
+        </span>
+      </div>
+      <div className="w-full bg-white/10 rounded-full h-1.5 mb-6">
+        <div className="h-1.5 rounded-full bg-violet-500 transition-all" style={{ width: `${((qi + 1) / TOTAL) * 100}%` }} />
+      </div>
+      <div className="bg-gray-900 border border-white/10 rounded-3xl p-6 mb-6">
+        <p className="text-gray-400 text-xs mb-3">이 설명에 해당하는 용어는?</p>
+        <p className="text-white text-lg font-semibold leading-relaxed">{current.term.definition}</p>
+      </div>
+      <div className="flex flex-col gap-3">
+        {current.options.map(opt => {
+          const isCorrect = opt.id === current.term.id;
+          const isSelected = selected === opt.id;
+          let cls = "w-full p-4 rounded-2xl border-2 text-left text-white font-semibold transition active:scale-95 ";
+          if (!answered) cls += "bg-white/5 border-white/20 hover:bg-white/10";
+          else if (isCorrect) cls += "bg-emerald-800/40 border-emerald-400";
+          else if (isSelected) cls += "shake bg-red-900/40 border-red-400";
+          else cls += "bg-white/5 border-white/10 opacity-40";
+          return (
+            <button key={opt.id} className={cls} onClick={() => choose(opt)}>
+              {opt.term}
+              {answered && isCorrect && <span className="ml-2 text-emerald-400">✓</span>}
+              {answered && isSelected && !isCorrect && <span className="ml-2 text-red-400">✗</span>}
+            </button>
+          );
+        })}
+      </div>
+      {answered && (
+        <div className="mt-4 bg-gray-900 border border-white/10 rounded-2xl p-4 fade-in">
+          <p className="text-violet-300 text-xs">{current.term.funFact}</p>
+          <p className="text-gray-500 text-xs mt-2">{current.term.example}</p>
+          <button onClick={next} className="w-full mt-3 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold transition active:scale-95">
+            {qi + 1 >= TOTAL ? "결과 보기 →" : "다음 →"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── QuizResult ──────────────────────────────────────────────────────
+function QuizResult({ result, terms, onRetry, onLearnWrong, onHome }) {
+  const pct = Math.round((result.score / result.total) * 100);
+  const wrongTerms = terms.filter(t => result.wrongIds.includes(t.id));
+  const emoji = pct >= 80 ? "🏆" : pct >= 50 ? "👍" : "💪";
+  return (
+    <div className="min-h-screen flex flex-col px-6 py-8 max-w-lg mx-auto">
+      <div className="text-center mb-8">
+        <div className="text-6xl mb-3">{emoji}</div>
+        <h2 className="text-3xl font-bold text-white mb-1">{result.score} / {result.total}</h2>
+        <p className="text-gray-400">{pct}% 정답</p>
+      </div>
+      {wrongTerms.length > 0 && (
+        <div className="bg-red-900/20 border border-red-500/30 rounded-2xl p-4 mb-6">
+          <p className="text-red-400 text-sm font-semibold mb-3">❌ 틀린 용어 ({wrongTerms.length}개)</p>
+          {wrongTerms.map(t => (
+            <div key={t.id} className="text-white text-sm py-2 border-b border-white/5 last:border-0">
+              <span className="font-semibold">{t.term}</span>
+              <span className="text-gray-400 ml-2 text-xs">{t.definition}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-col gap-3">
+        {wrongTerms.length > 0 && (
+          <button onClick={onLearnWrong} className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition active:scale-95">
+            📖 틀린 용어 단어장에서 보기
+          </button>
+        )}
+        <button onClick={onRetry} className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold transition active:scale-95">다시 도전 ⚡</button>
+        <button onClick={onHome} className="w-full py-4 rounded-2xl bg-white/10 text-white font-semibold transition active:scale-95">테마 다시 선택</button>
+      </div>
+    </div>
+  );
+}
+
+// ── GachaScreen ─────────────────────────────────────────────────────
+function GachaScreen({ filteredTerms, onFinish, onBack }) {
+  const [cards] = useState(() => shuffle(filteredTerms).slice(0, 3));
+  const [flipped, setFlipped] = useState([false, false, false]);
+  const [wobble, setWobble] = useState([true, true, true]);
+  const allFlipped = flipped.every(Boolean);
+
+  const flip = (i) => {
+    if (flipped[i]) return;
+    setFlipped(f => f.map((v, idx) => idx === i ? true : v));
+    setWobble(w => w.map((v, idx) => idx === i ? false : v));
+  };
+
+  const rarityStyle = (d) => {
+    if (d === 3) return "border-yellow-400 bg-yellow-900/20";
+    if (d === 2) return "border-blue-400 bg-blue-900/20";
+    return "border-gray-500 bg-gray-800/40";
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <button onClick={onBack} className="text-gray-400 hover:text-white text-sm">← 나가기</button>
+        <h2 className="text-white font-bold">오늘의 뽑기 🎰</h2>
+        <div />
+      </div>
+      <p className="text-gray-400 text-sm text-center mb-8">카드를 탭해서 뒤집어보세요</p>
+      <div className="flex flex-col gap-4 flex-1">
+        {cards.map((card, i) => (
+          <div key={card.id} className={`card-container cursor-pointer ${wobble[i] ? "wobble" : ""}`}
+            style={{ height: 130 }} onClick={() => flip(i)}>
+            <div className={`card-inner w-full h-full ${flipped[i] ? "flipped" : ""}`}>
+              {/* 뒷면 (초기 표시) */}
+              <div className="card-face bg-gradient-to-br from-violet-900 to-indigo-900 border-2 border-violet-500/50 rounded-2xl flex items-center justify-center glow">
+                <div className="text-center">
+                  <div className="text-4xl mb-2">🎴</div>
+                  <div className="text-gray-400 text-sm">탭해서 공개</div>
+                </div>
+              </div>
+              {/* 앞면 (공개) */}
+              <div className={`card-face card-back-face rounded-2xl border-2 p-5 flex flex-col justify-between ${rarityStyle(card.difficulty)}`}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-white font-bold text-xl">{card.term}</div>
+                    {card.termFull && <div className="text-gray-400 text-xs">{card.termFull}</div>}
+                  </div>
+                  <span className={`text-sm ${DIFF_COLOR[card.difficulty]}`}>{DIFF[card.difficulty]}</span>
+                </div>
+                <p className="text-gray-300 text-sm leading-snug">{card.definition}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {allFlipped && (
+        <div className="mt-6 fade-in">
+          <div className="bg-violet-900/30 border border-violet-500/30 rounded-2xl p-4 mb-4 text-center">
+            <p className="text-violet-300 text-sm">✨ 컬렉션에 추가됐어요!</p>
+            <p className="text-gray-400 text-xs mt-1">내일 다시 뽑을 수 있어요</p>
+          </div>
+          <button onClick={() => onFinish(cards.map(c => c.id))}
+            className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold transition active:scale-95">
+            완료 →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── App ──────────────────────────────────────────────────────────────
+// ── SearchScreen ─────────────────────────────────────────────────────
+function SearchScreen({ allTerms, onBack }) {
+  const [query, setQuery] = useState("");
+  const [detail, setDetail] = useState(null);
+  const results = query.trim().length < 1 ? [] : allTerms.filter(t =>
+    t.term.toLowerCase().includes(query.toLowerCase()) ||
+    (t.termFull || "").toLowerCase().includes(query.toLowerCase()) ||
+    t.definition.includes(query)
+  );
+
+  return (
+    <div className="min-h-screen flex flex-col px-4 py-6 max-w-lg mx-auto">
+      {detail && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center px-4 z-50" onClick={() => setDetail(null)}>
+          <div className="bg-gray-900 border border-violet-500/40 rounded-3xl p-6 w-full max-w-sm fade-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-white font-bold text-2xl">{detail.term}</div>
+                {detail.termFull && <div className="text-gray-400 text-xs">{detail.termFull}</div>}
+              </div>
+              <button onClick={() => setDetail(null)} className="text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+            <p className="text-gray-200 text-sm leading-relaxed mb-3">{detail.definition}</p>
+            <div className="bg-white/5 rounded-xl p-3 mb-3">
+              <p className="text-gray-400 text-xs mb-1">💬 예문</p>
+              <p className="text-gray-300 text-xs">{detail.example}</p>
+            </div>
+            <p className="text-violet-300 text-xs">{detail.funFact}</p>
+            <button onClick={() => { shareCard(detail); }} className="w-full mt-4 py-2 rounded-xl bg-white/10 text-gray-300 text-sm transition active:scale-95">
+              📤 카드 이미지 저장
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={onBack} className="text-gray-400 hover:text-white text-sm">← 뒤로</button>
+        <h2 className="text-white font-bold text-lg">용어 검색</h2>
+      </div>
+      <input
+        type="text"
+        autoFocus
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="용어명 또는 설명으로 검색..."
+        className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 mb-6 text-base"
+      />
+      {query.trim() && results.length === 0 && (
+        <div className="text-center text-gray-500 mt-10">
+          <div className="text-4xl mb-3">🔍</div>
+          <p>"{query}"에 대한 결과가 없어요</p>
+        </div>
+      )}
+      {!query.trim() && (
+        <div className="text-center text-gray-600 mt-10">
+          <div className="text-4xl mb-3">💬</div>
+          <p className="text-sm">DAU, 너프, 핫픽스 같은 키워드로 검색해보세요</p>
+        </div>
+      )}
+      <div className="flex flex-col gap-3">
+        {results.map(t => {
+          const cat = getCat(t.category);
+          return (
+            <button key={t.id} onClick={() => setDetail(t)}
+              className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-4 text-left transition active:scale-95">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm">{cat?.emoji}</span>
+                <span className="text-gray-400 text-xs">{cat?.name}</span>
+                <span className={`ml-auto text-xs ${DIFF_COLOR[t.difficulty]}`}>{DIFF[t.difficulty]}</span>
+              </div>
+              <div className="text-white font-bold">{t.term}</div>
+              {t.termFull && <div className="text-gray-500 text-xs">{t.termFull}</div>}
+              <div className="text-gray-400 text-sm mt-1 line-clamp-2">{t.definition}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── BookmarksScreen ──────────────────────────────────────────────────
+function BookmarksScreen({ allTerms, bookmarkedTermIds, onBack, onRemove }) {
+  const [detail, setDetail] = useState(null);
+  const bookmarked = allTerms.filter(t => bookmarkedTermIds.includes(t.id));
+
+  return (
+    <div className="min-h-screen flex flex-col px-4 py-6 max-w-lg mx-auto">
+      {detail && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center px-4 z-50" onClick={() => setDetail(null)}>
+          <div className="bg-gray-900 border border-amber-500/40 rounded-3xl p-6 w-full max-w-sm fade-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-white font-bold text-2xl">{detail.term}</div>
+                {detail.termFull && <div className="text-gray-400 text-xs">{detail.termFull}</div>}
+              </div>
+              <button onClick={() => setDetail(null)} className="text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+            <p className="text-gray-200 text-sm leading-relaxed mb-3">{detail.definition}</p>
+            <div className="bg-white/5 rounded-xl p-3 mb-3">
+              <p className="text-gray-400 text-xs mb-1">💬 예문</p>
+              <p className="text-gray-300 text-xs">{detail.example}</p>
+            </div>
+            <p className="text-violet-300 text-xs">{detail.funFact}</p>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { shareCard(detail); }} className="flex-1 py-2 rounded-xl bg-white/10 text-gray-300 text-sm transition active:scale-95">📤 저장</button>
+              <button onClick={() => { onRemove(detail.id); setDetail(null); }} className="flex-1 py-2 rounded-xl bg-red-900/30 text-red-400 text-sm transition active:scale-95">⭐ 해제</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={onBack} className="text-gray-400 hover:text-white text-sm">← 뒤로</button>
+        <h2 className="text-white font-bold text-lg">즐겨찾기 ⭐</h2>
+        <span className="text-gray-500 text-sm ml-auto">{bookmarked.length}개</span>
+      </div>
+      {bookmarked.length === 0 ? (
+        <div className="text-center text-gray-600 mt-20">
+          <div className="text-4xl mb-3">⭐</div>
+          <p className="text-sm">단어장에서 ☆를 탭하면 여기 쌓여요</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {bookmarked.map(t => {
+            const cat = getCat(t.category);
+            return (
+              <button key={t.id} onClick={() => setDetail(t)}
+                className="w-full bg-amber-900/10 hover:bg-amber-900/20 border border-amber-500/20 rounded-2xl p-4 text-left transition active:scale-95">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm">{cat?.emoji}</span>
+                  <span className="text-gray-400 text-xs">{cat?.name}</span>
+                  <span className={`ml-auto text-xs ${DIFF_COLOR[t.difficulty]}`}>{DIFF[t.difficulty]}</span>
+                </div>
+                <div className="text-white font-bold">{t.term}</div>
+                <div className="text-gray-400 text-sm mt-1">{t.definition}</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+      <div className="text-5xl">🎮</div>
+      <div className="text-white font-semibold">용어 데이터 불러오는 중...</div>
+      <div className="flex gap-2 mt-2">
+        {[0,1,2].map(i => (
+          <div key={i} className="w-2 h-2 bg-violet-500 rounded-full"
+            style={{ animation: `pop 0.8s ease ${i*0.2}s infinite` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [screen, setScreen] = useState("splash");
+  const [selectedThemes, setSelectedThemes] = useState([]);
+  const [selectedDifficulties, setSelectedDifficulties] = useState([1, 2, 3]);
+  const [quizResult, setQuizResult] = useState(null);
+  const [learnWrongOnly, setLearnWrongOnly] = useState(false);
+  const [progress, setProgress] = useState(() => loadProgress());
+  const [allTerms, setAllTerms] = useState(TERMS_BUILTIN);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataSource, setDataSource] = useState("내장");
+
+  useEffect(() => {
+    fetch("terms.json")
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(data => {
+        if (data.terms && data.terms.length > 0) {
+          setAllTerms(data.terms);
+          setDataSource(`외부 JSON (${data.terms.length}개)`);
+        }
+        setDataLoading(false);
+      })
+      .catch(() => setDataLoading(false));
+  }, []);
+
+  const toggleDifficulty = (level) => {
+    setSelectedDifficulties(prev => {
+      if (prev.includes(level) && prev.length === 1) return prev;
+      return prev.includes(level) ? prev.filter(x => x !== level) : [...prev, level];
+    });
+  };
+
+  const updateProgress = (patch) => {
+    setProgress(prev => {
+      const next = { ...prev, ...patch };
+      saveProgress(next);
+      return next;
+    });
+  };
+
+  // 출석 체크
+  useEffect(() => {
+    const p = loadProgress();
+    const t = today();
+    if (p.lastVisitDate === t) return;
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const streak = p.lastVisitDate === yesterday ? (p.streakDays || 0) + 1 : 1;
+    updateProgress({ lastVisitDate: t, streakDays: streak });
+  }, []);
+
+  if (dataLoading) return <LoadingScreen />;
+
+  const filteredTerms = allTerms.filter(t => selectedThemes.includes(t.category) && selectedDifficulties.includes(t.difficulty));
+  const wrongTermIds = progress.wrongTermIds || [];
+  const learnTerms = learnWrongOnly
+    ? filteredTerms.filter(t => wrongTermIds.includes(t.id))
+    : filteredTerms;
+
+  const handleWrong = (id) => {
+    const newWrong = [...new Set([...wrongTermIds, id])];
+    updateProgress({ wrongTermIds: newWrong });
+  };
+
+  const handleQuizFinish = (result) => {
+    setQuizResult(result);
+    const newWrong = [...new Set([...wrongTermIds, ...result.wrongIds])];
+    const history = [...(progress.quizHistory || []).slice(-9), { date: today(), score: result.score, total: result.total }];
+    updateProgress({ wrongTermIds: newWrong, quizHistory: history });
+    setScreen("quiz_result");
+  };
+
+  const handleGachaFinish = (ids) => {
+    const collected = [...new Set([...(progress.collectedTermIds || []), ...ids])];
+    updateProgress({ collectedTermIds: collected, gachaLastDate: today() });
+    setScreen("test_hub");
+  };
+
+  const handleLearnWrong = () => {
+    setLearnWrongOnly(true);
+    setScreen("learn");
+  };
+
+  const bookmarkedTermIds = progress.bookmarkedTermIds || [];
+
+  const handleBookmark = (id) => {
+    const cur = progress.bookmarkedTermIds || [];
+    const next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id];
+    updateProgress({ bookmarkedTermIds: next });
+  };
+
+  return (
+    <div className="text-white">
+      {screen === "search" && <SearchScreen allTerms={allTerms} onBack={() => setScreen("splash")} />}
+      {screen === "bookmarks" && (
+        <BookmarksScreen
+          allTerms={allTerms}
+          bookmarkedTermIds={bookmarkedTermIds}
+          onBack={() => setScreen("splash")}
+          onRemove={handleBookmark}
+        />
+      )}
+      {screen === "splash" && (
+        <SplashScreen
+          progress={progress}
+          dataSource={dataSource}
+          onStart={() => setScreen("theme_select")}
+          onSearch={() => setScreen("search")}
+          onBookmarks={() => setScreen("bookmarks")}
+        />
+      )}
+      {screen === "theme_select" && (
+        <ThemeSelectScreen allTerms={allTerms} onConfirm={(themes) => { setSelectedThemes(themes); setScreen("mode_split"); }} />
+      )}
+      {screen === "mode_split" && (
+        <ModeSplitScreen
+          allTerms={allTerms}
+          selectedThemes={selectedThemes}
+          selectedDifficulties={selectedDifficulties}
+          onDifficultyChange={toggleDifficulty}
+          onMode={(m) => { setLearnWrongOnly(false); setScreen(m === "test_hub" ? "test_hub" : "learn"); }}
+          onChangeTheme={() => setScreen("theme_select")}
+        />
+      )}
+      {screen === "test_hub" && (
+        <TestHub filteredTerms={filteredTerms} progress={progress}
+          onQuiz={() => setScreen("quiz")}
+          onGacha={() => setScreen("gacha")}
+          onBack={() => setScreen("mode_split")} />
+      )}
+      {screen === "learn" && (
+        <LearnMode
+          terms={learnTerms.length ? learnTerms : filteredTerms}
+          allTerms={allTerms}
+          wrongTermIds={wrongTermIds}
+          bookmarkedTermIds={bookmarkedTermIds}
+          onExit={(dest) => { setLearnWrongOnly(false); setScreen(dest || "mode_split"); }}
+          onWrong={handleWrong}
+          onBookmark={handleBookmark}
+        />
+      )}
+      {screen === "quiz" && (
+        <QuizMode terms={filteredTerms} onFinish={handleQuizFinish} onBack={() => setScreen("test_hub")} />
+      )}
+      {screen === "quiz_result" && quizResult && (
+        <QuizResult result={quizResult} terms={filteredTerms}
+          onRetry={() => setScreen("quiz")}
+          onLearnWrong={handleLearnWrong}
+          onHome={() => setScreen("theme_select")} />
+      )}
+      {screen === "gacha" && (
+        <GachaScreen filteredTerms={filteredTerms} onFinish={handleGachaFinish} onBack={() => setScreen("test_hub")} />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
