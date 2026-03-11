@@ -886,16 +886,29 @@ function App() {
   const [dataSource, setDataSource] = useState("내장");
 
   useEffect(() => {
-    fetch("terms.json")
+    const GITHUB_URL = "https://raw.githubusercontent.com/hyeonheebee/game-industry-word-test/main/terms.json";
+    fetch(GITHUB_URL)
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(data => {
         if (data.terms && data.terms.length > 0) {
           setAllTerms(data.terms);
-          setDataSource(`외부 JSON (${data.terms.length}개)`);
+          setDataSource(`GitHub API (${data.terms.length}개)`);
         }
         setDataLoading(false);
       })
-      .catch(() => setDataLoading(false));
+      .catch(() => {
+        // GitHub 실패 시 상대경로 fallback
+        fetch("terms.json")
+          .then(r => r.json())
+          .then(data => {
+            if (data.terms?.length > 0) {
+              setAllTerms(data.terms);
+              setDataSource(`로컬 (${data.terms.length}개)`);
+            }
+            setDataLoading(false);
+          })
+          .catch(() => setDataLoading(false));
+      });
   }, []);
 
   const toggleDifficulty = (level) => {
