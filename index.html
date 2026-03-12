@@ -176,9 +176,14 @@ function SplashScreen({ onStart, onSearch, onBookmarks, progress, dataSource }) 
         <div className="text-center"><div className="text-2xl mb-1">⚡</div>퀴즈</div>
         <div className="text-center"><div className="text-2xl mb-1">🎰</div>뽑기</div>
       </div>
-      <button onClick={onStart} className="bg-violet-600 hover:bg-violet-500 text-white font-bold py-4 px-10 rounded-2xl text-lg transition active:scale-95">
-        시작하기 →
-      </button>
+      <div className="flex gap-3 w-full max-w-sm">
+        <button onClick={onStart} className="flex-1 bg-violet-600 hover:bg-violet-500 text-white font-bold py-4 rounded-2xl text-lg transition active:scale-95">
+          시작하기 →
+        </button>
+        <button onClick={() => shareRank(progress)} className="bg-white/10 hover:bg-white/20 text-white px-4 rounded-2xl transition active:scale-95" title="내 랭크 카드 저장">
+          📤
+        </button>
+      </div>
       <p className="text-gray-600 text-xs mt-6">컬렉션 {(progress.collectedTermIds||[]).length}개 · 데이터: {dataSource}</p>
     </div>
   );
@@ -419,6 +424,103 @@ function shareCard(term) {
   // 다운로드
   const a = document.createElement("a");
   a.download = `${term.term}_card.png`;
+  a.href = canvas.toDataURL("image/png");
+  a.click();
+}
+
+function shareRank(progress) {
+  const lv = getLevelInfo(progress.xp || 0);
+  const streak = progress.streakDays || 0;
+  const collected = (progress.collectedTermIds || []).length;
+  const W = 600, H = 420;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  // 배경
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, "#0f0f1a");
+  bg.addColorStop(1, "#1a0f2e");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // 테두리 그라디언트
+  const border = ctx.createLinearGradient(0, 0, W, H);
+  border.addColorStop(0, "#7c3aed");
+  border.addColorStop(1, "#3b82f6");
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(8, 8, W - 16, H - 16);
+
+  // 헤더
+  ctx.fillStyle = "#6b7280";
+  ctx.font = "15px Segoe UI";
+  ctx.fillText("🎮  게임업계 생존단어장", 36, 52);
+
+  // 레벨
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 22px Segoe UI";
+  ctx.fillText(`Lv.${lv.lv}`, 36, 110);
+
+  // 칭호
+  ctx.fillStyle = "#c4b5fd";
+  ctx.font = "bold 28px Segoe UI";
+  ctx.fillText(lv.title, 36, 155);
+
+  // XP 바 배경
+  const barX = 36, barY = 178, barW = W - 72, barH = 14;
+  ctx.fillStyle = "#1f2937";
+  ctx.beginPath();
+  ctx.roundRect(barX, barY, barW, barH, 7);
+  ctx.fill();
+
+  // XP 바 채우기
+  const filled = Math.max(8, (lv.pct / 100) * barW);
+  const xpGrad = ctx.createLinearGradient(barX, 0, barX + filled, 0);
+  xpGrad.addColorStop(0, "#7c3aed");
+  xpGrad.addColorStop(1, "#60a5fa");
+  ctx.fillStyle = xpGrad;
+  ctx.beginPath();
+  ctx.roundRect(barX, barY, filled, barH, 7);
+  ctx.fill();
+
+  // XP 수치
+  ctx.fillStyle = "#9ca3af";
+  ctx.font = "13px Segoe UI";
+  ctx.fillText(`${lv.xp} XP`, barX, barY + barH + 20);
+  if (lv.next) {
+    const txt = `다음 칭호까지 ${lv.next.minXP - lv.xp} XP`;
+    const tw = ctx.measureText(txt).width;
+    ctx.fillText(txt, barX + barW - tw, barY + barH + 20);
+  }
+
+  // 구분선
+  ctx.strokeStyle = "#1f2937";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(36, 230); ctx.lineTo(W - 36, 230); ctx.stroke();
+
+  // 통계
+  const stats = [
+    { icon: "🔥", label: "연속 출석", value: `${streak}일` },
+    { icon: "📦", label: "컬렉션", value: `${collected}개` },
+  ];
+  stats.forEach((s, i) => {
+    const x = 36 + i * 200;
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "13px Segoe UI";
+    ctx.fillText(`${s.icon}  ${s.label}`, x, 268);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 26px Segoe UI";
+    ctx.fillText(s.value, x, 306);
+  });
+
+  // 브랜딩
+  ctx.fillStyle = "#374151";
+  ctx.font = "13px Segoe UI";
+  ctx.fillText("hyeonheebee.github.io/game-industry-word-test", 36, H - 28);
+
+  const a = document.createElement("a");
+  a.download = `rank_lv${lv.lv}.png`;
   a.href = canvas.toDataURL("image/png");
   a.click();
 }
