@@ -8,6 +8,8 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap">
 <style>
   body { background: #0f0f1a; font-family: 'Segoe UI', sans-serif; }
   .card-container { perspective: 1000px; }
@@ -125,6 +127,8 @@ const getLevelInfo = (xp) => {
   const pct = next ? Math.round(((xp - cur.minXP) / (next.minXP - cur.minXP)) * 100) : 100;
   return { ...cur, next, pct, xp };
 };
+
+const ensureKoreanFont = () => document.fonts.load('16px "Noto Sans KR"');
 
 const loadProgress = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; } };
 const saveProgress = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -374,7 +378,8 @@ function MiniQuiz({ recentTerms, allTerms, onClose, onWrong }) {
 
 // ── LearnMode ───────────────────────────────────────────────────────
 // ── shareCard (Canvas → PNG 다운로드) ───────────────────────────────
-function shareCard(term) {
+async function shareCard(term) {
+  await ensureKoreanFont();
   const cat = getCat(term.category);
   const W = 600, H = 380;
   const canvas = document.createElement("canvas");
@@ -389,16 +394,16 @@ function shareCard(term) {
   ctx.strokeRect(8, 8, W - 16, H - 16);
   // 카테고리
   ctx.fillStyle = "#9ca3af";
-  ctx.font = "16px Segoe UI";
+  ctx.font = "16px 'Noto Sans KR'";
   ctx.fillText(`${cat?.emoji} ${cat?.name}`, 36, 50);
   // 용어
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 48px Segoe UI";
+  ctx.font = "bold 48px 'Noto Sans KR'";
   ctx.fillText(term.term, 36, 112);
   // 풀네임
   if (term.termFull) {
     ctx.fillStyle = "#6b7280";
-    ctx.font = "16px Segoe UI";
+    ctx.font = "16px 'Noto Sans KR'";
     ctx.fillText(term.termFull, 36, 142);
   }
   // 구분선
@@ -407,7 +412,7 @@ function shareCard(term) {
   ctx.beginPath(); ctx.moveTo(36, 162); ctx.lineTo(W - 36, 162); ctx.stroke();
   // 정의 (줄바꿈)
   ctx.fillStyle = "#e5e7eb";
-  ctx.font = "20px Segoe UI";
+  ctx.font = "20px 'Noto Sans KR'";
   const words = term.definition.split(" ");
   let line = "", y = 196;
   for (const w of words) {
@@ -418,9 +423,9 @@ function shareCard(term) {
   }
   ctx.fillText(line.trim(), 36, y);
   // 브랜딩
-  ctx.fillStyle = "#4b5563";
-  ctx.font = "13px Segoe UI";
-  ctx.fillText("게임업계 생존단어장 · KRAFTON", 36, H - 24);
+  ctx.fillStyle = "#374151";
+  ctx.font = "13px 'Noto Sans KR'";
+  ctx.fillText("문의는 KDC 팀 - 심현희 로 보내주세요.  |  게임업계 생존단어장 · KRAFTON", 36, H - 24);
   // 다운로드
   const a = document.createElement("a");
   a.download = `${term.term}_card.png`;
@@ -428,7 +433,8 @@ function shareCard(term) {
   a.click();
 }
 
-function shareRank(progress) {
+async function shareRank(progress) {
+  await ensureKoreanFont();
   const lv = getLevelInfo(progress.xp || 0);
   const streak = progress.streakDays || 0;
   const collected = (progress.collectedTermIds || []).length;
@@ -454,17 +460,17 @@ function shareRank(progress) {
 
   // 헤더
   ctx.fillStyle = "#6b7280";
-  ctx.font = "15px Segoe UI";
+  ctx.font = "15px 'Noto Sans KR'";
   ctx.fillText("🎮  게임업계 생존단어장", 36, 52);
 
   // 레벨
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 22px Segoe UI";
+  ctx.font = "bold 22px 'Noto Sans KR'";
   ctx.fillText(`Lv.${lv.lv}`, 36, 110);
 
   // 칭호
   ctx.fillStyle = "#c4b5fd";
-  ctx.font = "bold 28px Segoe UI";
+  ctx.font = "bold 28px 'Noto Sans KR'";
   ctx.fillText(lv.title, 36, 155);
 
   // XP 바 배경
@@ -486,7 +492,7 @@ function shareRank(progress) {
 
   // XP 수치
   ctx.fillStyle = "#9ca3af";
-  ctx.font = "13px Segoe UI";
+  ctx.font = "13px 'Noto Sans KR'";
   ctx.fillText(`${lv.xp} XP`, barX, barY + barH + 20);
   if (lv.next) {
     const txt = `다음 칭호까지 ${lv.next.minXP - lv.xp} XP`;
@@ -507,17 +513,17 @@ function shareRank(progress) {
   stats.forEach((s, i) => {
     const x = 36 + i * 200;
     ctx.fillStyle = "#6b7280";
-    ctx.font = "13px Segoe UI";
+    ctx.font = "13px 'Noto Sans KR'";
     ctx.fillText(`${s.icon}  ${s.label}`, x, 268);
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 26px Segoe UI";
+    ctx.font = "bold 26px 'Noto Sans KR'";
     ctx.fillText(s.value, x, 306);
   });
 
   // 브랜딩
   ctx.fillStyle = "#374151";
-  ctx.font = "13px Segoe UI";
-  ctx.fillText("hyeonheebee.github.io/game-industry-word-test", 36, H - 28);
+  ctx.font = "13px 'Noto Sans KR'";
+  ctx.fillText("문의는 KDC 팀 - 심현희 로 보내주세요.  |  게임업계 생존단어장", 36, H - 28);
 
   const a = document.createElement("a");
   a.download = `rank_lv${lv.lv}.png`;
