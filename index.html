@@ -195,11 +195,14 @@ function SplashScreen({ onStart, onSearch, onBookmarks, progress, dataSource }) 
 }
 
 // ── ThemeSelectScreen ───────────────────────────────────────────────
-function ThemeSelectScreen({ allTerms, onConfirm }) {
+function ThemeSelectScreen({ allTerms, onConfirm, onHome }) {
   const [selected, setSelected] = useState([]);
   const toggle = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
   return (
     <div className="min-h-screen px-4 py-8 max-w-lg mx-auto">
+      <div className="flex justify-end mb-4">
+        <button onClick={onHome} className="text-gray-500 hover:text-white text-sm bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl transition">🏠 홈</button>
+      </div>
       <h2 className="text-2xl font-bold text-white mb-1">어떤 분야가 궁금해요?</h2>
       <p className="text-gray-400 text-sm mb-6">복수 선택 가능 · 나중에 바꿀 수 있어요</p>
       <div className="grid grid-cols-2 gap-3 mb-4">
@@ -229,7 +232,7 @@ function ThemeSelectScreen({ allTerms, onConfirm }) {
 }
 
 // ── ModeSplitScreen ─────────────────────────────────────────────────
-function ModeSplitScreen({ allTerms, selectedThemes, selectedDifficulties, onDifficultyChange, onMode, onChangeTheme }) {
+function ModeSplitScreen({ allTerms, selectedThemes, selectedDifficulties, onDifficultyChange, onMode, onChangeTheme, onHome }) {
   const count = allTerms.filter(t => selectedThemes.includes(t.category) && selectedDifficulties.includes(t.difficulty)).length;
   const diffOptions = [
     { level: 1, label: "⭐ 기본", color: "border-green-500/60 bg-green-900/20 text-green-400" },
@@ -238,9 +241,10 @@ function ModeSplitScreen({ allTerms, selectedThemes, selectedDifficulties, onDif
   ];
   return (
     <div className="min-h-screen flex flex-col px-6 py-8 max-w-lg mx-auto">
-      <button onClick={onChangeTheme} className="text-gray-400 hover:text-white text-sm mb-6 self-start">
-        ← 테마 변경
-      </button>
+      <div className="flex items-center justify-between mb-6">
+        <button onClick={onChangeTheme} className="text-gray-400 hover:text-white text-sm">← 테마 변경</button>
+        <button onClick={onHome} className="text-gray-500 hover:text-white text-sm bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl transition">🏠 홈</button>
+      </div>
       <h2 className="text-2xl font-bold text-white mb-1 text-center">어떻게 공부할까요?</h2>
       <p className="text-gray-400 text-sm mb-6 text-center">{selectedThemes.length}개 테마 · {count}개 용어</p>
 
@@ -280,13 +284,16 @@ function ModeSplitScreen({ allTerms, selectedThemes, selectedDifficulties, onDif
 }
 
 // ── TestHub ─────────────────────────────────────────────────────────
-function TestHub({ filteredTerms, progress, onQuiz, onGacha, onBack }) {
+function TestHub({ filteredTerms, progress, onQuiz, onGacha, onWeakQuiz, weakTermCount, onBack, onHome }) {
   const gachaDone = progress.gachaLastDate === today();
   const lastScore = progress.quizHistory?.slice(-1)[0];
   const collected = (progress.collectedTermIds || []).filter(id => filteredTerms.find(t => t.id === id)).length;
   return (
     <div className="min-h-screen px-4 py-8 max-w-lg mx-auto">
-      <button onClick={onBack} className="text-gray-400 hover:text-white text-sm mb-6 block">← 뒤로</button>
+      <div className="flex items-center justify-between mb-6">
+        <button onClick={onBack} className="text-gray-400 hover:text-white text-sm">← 뒤로</button>
+        <button onClick={onHome} className="text-gray-500 hover:text-white text-sm bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl transition">🏠 홈</button>
+      </div>
       <h2 className="text-2xl font-bold text-white mb-6">테스트 허브</h2>
       {/* 현황 카드 */}
       <div className="grid grid-cols-3 gap-3 mb-8">
@@ -320,6 +327,16 @@ function TestHub({ filteredTerms, progress, onQuiz, onGacha, onBack }) {
             <div>
               <div className="text-white font-bold text-lg">오늘의 뽑기</div>
               <div className="text-gray-400 text-sm">{gachaDone ? "오늘은 이미 뽑았어요 (내일 또 가능)" : "랜덤 3장 뽑기 · 일 1회"}</div>
+            </div>
+          </div>
+        </button>
+        <button onClick={filteredTerms.length >= 4 ? onWeakQuiz : undefined}
+          className={`w-full rounded-2xl p-5 text-left border-2 transition active:scale-95 ${filteredTerms.length < 4 ? "bg-white/5 border-white/10 opacity-40 cursor-not-allowed" : "bg-rose-900/40 border-rose-500/50 hover:bg-rose-800/40"}`}>
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🎯</span>
+            <div>
+              <div className="text-white font-bold text-lg">약점 퀴즈</div>
+              <div className="text-gray-400 text-sm">{weakTermCount > 0 ? `${weakTermCount}개 약점 용어 집중 출제` : "약점 없음 · 전체에서 출제"}</div>
             </div>
           </div>
         </button>
@@ -532,7 +549,7 @@ async function shareRank(progress) {
   a.click();
 }
 
-function LearnMode({ terms, allTerms, wrongTermIds, bookmarkedTermIds, onExit, onWrong, onBookmark, onXP }) {
+function LearnMode({ terms, allTerms, wrongTermIds, bookmarkedTermIds, onExit, onWrong, onBookmark, onXP, onMastery }) {
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [done, setDone] = useState(false);
@@ -568,6 +585,11 @@ function LearnMode({ terms, allTerms, wrongTermIds, bookmarkedTermIds, onExit, o
     setShowMini(false);
     if (index === terms.length - 1) { setDone(true); return; }
     setIndex(i => i + 1);
+  };
+
+  const handleMasteryBtn = (knew) => {
+    if (onMastery) onMastery(term.id, knew);
+    next();
   };
 
   if (done) return (
@@ -659,14 +681,26 @@ function LearnMode({ terms, allTerms, wrongTermIds, bookmarkedTermIds, onExit, o
             </div>
           </div>
         </div>
-        <div className="flex gap-3 mt-6">
+        {flipped && (
+          <div className="flex gap-3 mt-4">
+            <button onClick={() => handleMasteryBtn(false)}
+              className="flex-1 py-3 rounded-2xl bg-red-900/40 border border-red-500/50 text-red-300 font-semibold active:scale-95 transition">
+              ❌ 모르겠어요
+            </button>
+            <button onClick={() => handleMasteryBtn(true)}
+              className="flex-1 py-3 rounded-2xl bg-emerald-900/40 border border-emerald-500/50 text-emerald-300 font-semibold active:scale-95 transition">
+              ✅ 알았어요
+            </button>
+          </div>
+        )}
+        <div className="flex gap-3 mt-3">
           <button onClick={() => { setIndex(i => Math.max(0, i - 1)); }} disabled={index === 0}
-            className="flex-1 py-4 rounded-2xl bg-white/10 text-white font-semibold disabled:opacity-30 active:scale-95 transition">
+            className="flex-1 py-3 rounded-2xl bg-white/10 text-white font-semibold disabled:opacity-30 active:scale-95 transition">
             ← 이전
           </button>
           <button onClick={next}
-            className="flex-1 py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold active:scale-95 transition">
-            {index === terms.length - 1 ? "완료 🎉" : "다음 →"}
+            className={`flex-1 py-3 rounded-2xl font-semibold active:scale-95 transition ${flipped ? "bg-white/5 text-gray-500 hover:bg-white/10" : "bg-violet-600 hover:bg-violet-500 text-white font-bold"}`}>
+            {index === terms.length - 1 ? "완료 🎉" : flipped ? "건너뛰기" : "다음 →"}
           </button>
         </div>
       </div>
@@ -675,7 +709,7 @@ function LearnMode({ terms, allTerms, wrongTermIds, bookmarkedTermIds, onExit, o
 }
 
 // ── QuizMode ────────────────────────────────────────────────────────
-function QuizMode({ terms, onFinish, onBack }) {
+function QuizMode({ terms, onFinish, onBack, onHome }) {
   const TOTAL = Math.min(10, terms.length);
   const [questions] = useState(() => shuffle(terms).slice(0, TOTAL).map(t => ({
     term: t,
@@ -710,9 +744,12 @@ function QuizMode({ terms, onFinish, onBack }) {
       <div className="flex items-center justify-between mb-4">
         <button onClick={onBack} className="text-gray-400 hover:text-white text-sm">← 나가기</button>
         <span className="text-gray-400 text-sm">{qi + 1} / {TOTAL}</span>
-        <span key={animKey} className={`text-orange-400 font-bold text-sm ${streak > 0 ? "pop" : ""}`}>
-          {streak > 1 ? `🔥 ${streak}연속` : `점수 ${score}`}
-        </span>
+        <div className="flex items-center gap-2">
+          <span key={animKey} className={`text-orange-400 font-bold text-sm ${streak > 0 ? "pop" : ""}`}>
+            {streak > 1 ? `🔥 ${streak}연속` : `점수 ${score}`}
+          </span>
+          <button onClick={onHome} className="text-gray-600 hover:text-white text-sm">🏠</button>
+        </div>
       </div>
       <div className="w-full bg-white/10 rounded-full h-1.5 mb-6">
         <div className="h-1.5 rounded-full bg-violet-500 transition-all" style={{ width: `${((qi + 1) / TOTAL) * 100}%` }} />
@@ -790,14 +827,14 @@ function QuizResult({ result, terms, onRetry, onLearnWrong, onHome }) {
           </button>
         )}
         <button onClick={onRetry} className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-bold transition active:scale-95">다시 도전 ⚡</button>
-        <button onClick={onHome} className="w-full py-4 rounded-2xl bg-white/10 text-white font-semibold transition active:scale-95">테마 다시 선택</button>
+        <button onClick={onHome} className="w-full py-4 rounded-2xl bg-white/10 text-white font-semibold transition active:scale-95">🏠 홈으로</button>
       </div>
     </div>
   );
 }
 
 // ── GachaScreen ─────────────────────────────────────────────────────
-function GachaScreen({ filteredTerms, onFinish, onBack, onXP }) {
+function GachaScreen({ filteredTerms, onFinish, onBack, onXP, onHome }) {
   const [cards] = useState(() => shuffle(filteredTerms).slice(0, 3));
   const [flipped, setFlipped] = useState([false, false, false]);
   const [wobble, setWobble] = useState([true, true, true]);
@@ -820,7 +857,7 @@ function GachaScreen({ filteredTerms, onFinish, onBack, onXP }) {
       <div className="flex items-center justify-between mb-6">
         <button onClick={onBack} className="text-gray-400 hover:text-white text-sm">← 나가기</button>
         <h2 className="text-white font-bold">오늘의 뽑기 🎰</h2>
-        <div />
+        <button onClick={onHome} className="text-gray-600 hover:text-white text-sm">🏠</button>
       </div>
       <p className="text-gray-400 text-sm text-center mb-8">카드를 탭해서 뒤집어보세요</p>
       <div className="flex flex-col gap-4 flex-1">
@@ -1124,9 +1161,28 @@ function App() {
 
   const filteredTerms = allTerms.filter(t => selectedThemes.includes(t.category) && selectedDifficulties.includes(t.difficulty));
   const wrongTermIds = progress.wrongTermIds || [];
+  const masteryData = progress.termMastery || {};
+  const reviewData = progress.termNextReview || {};
+  const todayStr = today();
+
+  const dueTerms = shuffle(filteredTerms.filter(t => { const nr = reviewData[t.id]; return nr && nr <= todayStr; }));
+  const newTerms = shuffle(filteredTerms.filter(t => masteryData[t.id] === undefined));
+  const learnQueueTerms = dueTerms.length > 0 || newTerms.length > 0
+    ? [...dueTerms, ...newTerms]
+    : shuffle(filteredTerms.filter(t => (masteryData[t.id] || 0) < 5));
+
   const learnTerms = learnWrongOnly
     ? filteredTerms.filter(t => wrongTermIds.includes(t.id))
-    : filteredTerms;
+    : (learnQueueTerms.length > 0 ? learnQueueTerms : filteredTerms);
+
+  const weakTerms = filteredTerms.filter(t => {
+    const m = masteryData[t.id];
+    return m === undefined || m <= 1 || wrongTermIds.includes(t.id);
+  });
+  const weakQuizTerms = weakTerms.length >= 4 ? weakTerms
+    : filteredTerms.filter(t => (masteryData[t.id] || 0) <= 2).length >= 4
+      ? filteredTerms.filter(t => (masteryData[t.id] || 0) <= 2)
+      : filteredTerms;
 
   const handleWrong = (id) => {
     const newWrong = [...new Set([...wrongTermIds, id])];
@@ -1165,6 +1221,19 @@ function App() {
     updateProgress({ bookmarkedTermIds: next });
   };
 
+  const handleMastery = (termId, knew) => {
+    const mastery = { ...(progress.termMastery || {}) };
+    const reviews = { ...(progress.termNextReview || {}) };
+    const cur = mastery[termId] !== undefined ? mastery[termId] : 0;
+    const newLevel = knew ? Math.min(5, cur + 1) : Math.max(0, cur - 1);
+    const reviewDays = [0, 1, 2, 4, 7, 14];
+    const d = new Date();
+    d.setDate(d.getDate() + reviewDays[newLevel]);
+    mastery[termId] = newLevel;
+    reviews[termId] = d.toISOString().slice(0, 10);
+    updateProgress({ termMastery: mastery, termNextReview: reviews });
+  };
+
   return (
     <div className="text-white">
       {levelUpInfo && <LevelUpModal info={levelUpInfo} onClose={() => setLevelUpInfo(null)} />}
@@ -1187,7 +1256,7 @@ function App() {
         />
       )}
       {screen === "theme_select" && (
-        <ThemeSelectScreen allTerms={allTerms} onConfirm={(themes) => { setSelectedThemes(themes); setScreen("mode_split"); }} />
+        <ThemeSelectScreen allTerms={allTerms} onConfirm={(themes) => { setSelectedThemes(themes); setScreen("mode_split"); }} onHome={() => setScreen("splash")} />
       )}
       {screen === "mode_split" && (
         <ModeSplitScreen
@@ -1197,13 +1266,17 @@ function App() {
           onDifficultyChange={toggleDifficulty}
           onMode={(m) => { setLearnWrongOnly(false); setScreen(m === "test_hub" ? "test_hub" : "learn"); }}
           onChangeTheme={() => setScreen("theme_select")}
+          onHome={() => setScreen("splash")}
         />
       )}
       {screen === "test_hub" && (
         <TestHub filteredTerms={filteredTerms} progress={progress}
           onQuiz={() => setScreen("quiz")}
           onGacha={() => setScreen("gacha")}
-          onBack={() => setScreen("mode_split")} />
+          onWeakQuiz={() => setScreen("weak_quiz")}
+          weakTermCount={weakTerms.length}
+          onBack={() => setScreen("mode_split")}
+          onHome={() => setScreen("splash")} />
       )}
       {screen === "learn" && (
         <LearnMode
@@ -1215,19 +1288,23 @@ function App() {
           onWrong={handleWrong}
           onBookmark={handleBookmark}
           onXP={addXP}
+          onMastery={handleMastery}
         />
       )}
       {screen === "quiz" && (
-        <QuizMode terms={filteredTerms} onFinish={handleQuizFinish} onBack={() => setScreen("test_hub")} />
+        <QuizMode terms={filteredTerms} onFinish={handleQuizFinish} onBack={() => setScreen("test_hub")} onHome={() => setScreen("splash")} />
+      )}
+      {screen === "weak_quiz" && (
+        <QuizMode terms={weakQuizTerms} onFinish={handleQuizFinish} onBack={() => setScreen("test_hub")} onHome={() => setScreen("splash")} />
       )}
       {screen === "quiz_result" && quizResult && (
         <QuizResult result={quizResult} terms={filteredTerms}
           onRetry={() => setScreen("quiz")}
           onLearnWrong={handleLearnWrong}
-          onHome={() => setScreen("theme_select")} />
+          onHome={() => setScreen("splash")} />
       )}
       {screen === "gacha" && (
-        <GachaScreen filteredTerms={filteredTerms} onFinish={handleGachaFinish} onBack={() => setScreen("test_hub")} onXP={addXP} />
+        <GachaScreen filteredTerms={filteredTerms} onFinish={handleGachaFinish} onBack={() => setScreen("test_hub")} onXP={addXP} onHome={() => setScreen("splash")} />
       )}
     </div>
   );
